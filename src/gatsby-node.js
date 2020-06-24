@@ -1,6 +1,5 @@
 const { createRemoteFileNode } = require(`gatsby-source-filesystem`);
 const get = require('lodash/get');
-const isArray = require('lodash/isArray');
 
 exports.onCreateNode = async (
   { node, actions, store, cache, createNodeId },
@@ -14,7 +13,6 @@ exports.onCreateNode = async (
     auth = {},
     ext = null,
     prepareUrl = null,
-    type = 'object',
   } = options;
   const createImageNodeOptions = {
     store,
@@ -38,20 +36,12 @@ exports.onCreateNode = async (
         imagePathSegments,
         ...createImageNodeOptions,
       });
-    } else if (type === 'array') {
-      const urls = getPaths(node, imagePath, ext);
-      await createImageNodes(urls, node, createImageNodeOptions);
     } else {
       const url = getPath(node, imagePath, ext);
       await createImageNode(url, node, createImageNodeOptions);
     }
   }
 };
-
-function getPaths(node, path, ext = null) {
-  const value = get(node, path);
-  return value.map(url => (ext ? url + ext : url));
-}
 
 // Returns value from path, adding extension when supplied
 function getPath(node, path, ext = null) {
@@ -65,58 +55,6 @@ function getCacheKeyForNodeId(nodeId) {
   return `gatsby-plugin-remote-images-${nodeId}`;
 }
 
-async function createImageNodes(urls, node, options) {
-  const { name, imagePathSegments, prepareUrl, ...restOfOptions } = options;
-  let fileNode;
-
-  if (!urls) {
-    return;
-  }
-
-  const fileNodes = (
-    await Promise.all(
-      urls.map(async (url, index) => {
-        if (typeof prepareUrl === 'function') {
-          url = prepareUrl({
-            url,
-            node,
-            index,
-          });
-        }
-
-        try {
-          fileNode = await createRemoteFileNode({
-            ...restOfOptions,
-            url,
-            parentNodeId: node.id,
-          });
-        } catch (e) {
-          console.error('gatsby-plugin-remote-images ERROR:', e);
-        }
-        return fileNode;
-      })
-    )
-  ).filter(fileNode => !!fileNode);
-
-  // Store the mapping between the current node and the newly created File node
-  if (fileNodes.length) {
-    // This associates the existing node (of user-specified type) with the new
-    // File nodes created via createRemoteFileNode. The new File nodes will be
-    // resolved dynamically through the Gatsby schema customization
-    // createResolvers API and which File node gets resolved for each new field
-    // on a given node of the user-specified type is determined by the contents
-    // of this mapping. The keys are based on the ID of the parent node (of
-    // user-specified type) and the values are each a nested mapping of the new
-    // image File field name to the ID of the new File node.
-    const cacheKey = getCacheKeyForNodeId(node.id);
-    const existingFileNodeMap = await options.cache.get(cacheKey);
-    await options.cache.set(cacheKey, {
-      ...existingFileNodeMap,
-      [name]: fileNodes.map(({ id }) => id),
-    });
-  }
-}
-
 // Creates a file node and associates the parent node to its new child
 async function createImageNode(url, node, options) {
   const { name, imagePathSegments, prepareUrl, ...restOfOptions } = options;
@@ -127,7 +65,7 @@ async function createImageNode(url, node, options) {
   }
 
   if (typeof prepareUrl === 'function') {
-    url = prepareUrl({ url, node });
+    url = prepareUrl(url);
   }
 
   try {
@@ -195,42 +133,19 @@ async function createImageNodesInArrays(path, node, options) {
 }
 
 exports.createResolvers = ({ cache, createResolvers }, options) => {
-  const { nodeType, name = 'localImage', type = 'object' } = options;
+  const { nodeType, name = 'localImage' } = options;
 
-  if (type === 'array') {
-    const resolvers = {
-      [nodeType]: {
-        [name]: {
-          type: '[File]',
-          resolve: async (source, _, context) => {
-            const fileNodeMap = await cache.get(
-              getCacheKeyForNodeId(source.id)
-            );
-            if (!fileNodeMap || !fileNodeMap[name]) {
-              return [];
-            }
-            return fileNodeMap[name].map(id =>
-              context.nodeModel.getNodeById({ id })
-            );
-          },
+  const resolvers = {
+    [nodeType]: {
+      [name]: {
+        type: 'File',
+        resolve: async (source, _, context) => {
+          const fileNodeMap = await cache.get(getCacheKeyForNodeId(source.id));
+          return context.nodeModel.getNodeById({ id: fileNodeMap[name] });
         },
       },
-    };
-    createResolvers(resolvers);
-  } else {
-    const resolvers = {
-      [nodeType]: {
-        [name]: {
-          type: 'File',
-          resolve: async (source, _, context) => {
-            const fileNodeMap = await cache.get(
-              getCacheKeyForNodeId(source.id)
-            );
-            return context.nodeModel.getNodeById({ id: fileNodeMap[name] });
-          },
-        },
-      },
-    };
-    createResolvers(resolvers);
-  }
+    },
+  };
+
+  createResolvers(resolvers);
 };
