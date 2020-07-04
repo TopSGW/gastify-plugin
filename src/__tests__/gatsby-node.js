@@ -8,14 +8,7 @@ const getGatsbyNodeHelperMocks = () => ({
   createNodeId: jest.fn().mockReturnValue('remoteFileIdHere'),
   createResolvers: jest.fn(),
   store: {},
-  cache: {
-    get: jest.fn().mockReturnValue({
-      resolve: { id: 'newFileNode' },
-    }),
-    set: jest.fn().mockReturnValue({
-      resolve: { id: 'newFileNode' },
-    }),
-  },
+  cache: {},
 });
 
 const mockContext = {
@@ -68,7 +61,7 @@ describe('gatsby-plugin-remote-images', () => {
       auth: {},
     });
 
-    createResolvers({ cache, createResolvers: mockCreateResolvers }, options);
+    createResolvers({ createResolvers: mockCreateResolvers }, options);
     expect(mockCreateResolvers).toHaveBeenCalledTimes(1);
     expect(mockCreateResolvers).toHaveBeenLastCalledWith({
       [options.nodeType]: {
@@ -84,7 +77,6 @@ describe('gatsby-plugin-remote-images', () => {
     });
     const fileNodeResolver =
       mockCreateResolvers.mock.calls[0][0][options.nodeType].localImage.resolve;
-
     expect(fileNodeResolver(baseNode, null, mockContext)).resolves.toEqual({
       id: 'newFileNode',
     });
