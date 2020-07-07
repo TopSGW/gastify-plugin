@@ -2,7 +2,7 @@ const { createRemoteFileNode } = require(`gatsby-source-filesystem`);
 const get = require('lodash/get');
 
 exports.onCreateNode = async (
-  { node, actions, store, cache, createNodeId },
+  { node, actions, store, cache, createNodeId, reporter },
   options
 ) => {
   const { createNode } = actions;
@@ -32,6 +32,10 @@ exports.onCreateNode = async (
     if (imagePath.includes('[].')) {
       imagePathSegments = imagePath.split('[].');
     }
+    const downloadingFilesActivity = reporter.activityTimer(
+      `Creating local images for ${nodeType}`
+    );
+    downloadingFilesActivity.start();
     if (imagePathSegments.length) {
       await createImageNodesInArrays(imagePathSegments[0], node, {
         imagePathSegments,
@@ -44,6 +48,7 @@ exports.onCreateNode = async (
       const url = getPath(node, imagePath, ext);
       await createImageNode(url, node, createImageNodeOptions);
     }
+    downloadingFilesActivity.end();
   }
 };
 
