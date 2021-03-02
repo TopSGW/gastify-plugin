@@ -37,11 +37,10 @@ exports.onCreateNode = async (
     );
     downloadingFilesActivity.start();
     if (imagePathSegments.length) {
-      const urls = await getAllFilesUrls(imagePathSegments[0], node, {
+      await createImageNodesInArrays(imagePathSegments[0], node, {
         imagePathSegments,
         ...createImageNodeOptions,
       });
-      await createImageNodes(urls, node, createImageNodeOptions);
     } else if (type === 'array') {
       const urls = getPaths(node, imagePath, ext);
       await createImageNodes(urls, node, createImageNodeOptions);
@@ -160,8 +159,8 @@ async function createImageNode(url, node, options) {
   }
 }
 
-// Recursively traverses objects/arrays at each path part, and return an array of urls
-async function getAllFilesUrls(path, node, options) {
+// Recursively traverses objects/arrays at each path part, then operates on targeted leaf node
+async function createImageNodesInArrays(path, node, options) {
   if (!path || !node) {
     return;
   }
@@ -170,25 +169,37 @@ async function getAllFilesUrls(path, node, options) {
     isPathToLeafProperty = pathIndex === imagePathSegments.length - 1,
     nextValue = getPath(node, path, isPathToLeafProperty ? ext : null);
 
+  // grab the parent of the leaf property, if it's not the current value of `node` already
+  // ex: `parentNode` in `myNodes[].parentNode.leafProperty`
+  let nextNode = node;
+  if (isPathToLeafProperty && path.includes('.')) {
+    const pathToLastParent = path
+      .split('.')
+      .slice(0, -1)
+      .join('.');
+    nextNode = get(node, pathToLastParent);
+  }
   // @TODO: Need logic to handle if the leaf node is an array to then shift
   // to the function of createImageNodes.
-  return Array.isArray(nextValue) && !isPathToLeafProperty
+  return Array.isArray(nextValue)
     ? // Recursively call function with next path segment for each array element
-      (
-        await Promise.all(
-          nextValue.map(item =>
-            getAllFilesUrls(imagePathSegments[pathIndex + 1], item, options)
+      Promise.all(
+        nextValue.map(item =>
+          createImageNodesInArrays(
+            imagePathSegments[pathIndex + 1],
+            item,
+            options
           )
         )
-      ).reduce((arr, row) => arr.concat(row), [])
+      )
     : // otherwise, handle leaf node
-      nextValue;
+      createImageNode(nextValue, nextNode, options);
 }
 
 exports.createResolvers = ({ cache, createResolvers }, options) => {
-  const { nodeType, imagePath, name = 'localImage', type = 'object' } = options;
+  const { nodeType, name = 'localImage', type = 'object' } = options;
 
-  if (type === 'array' || imagePath.includes('[].')) {
+  if (type === 'array') {
     const resolvers = {
       [nodeType]: {
         [name]: {
