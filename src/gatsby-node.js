@@ -55,7 +55,9 @@ exports.onCreateNode = async (
 
 function getPaths(node, path, ext = null) {
   const value = get(node, path);
-  return value.map(url => (ext ? url + ext : url));
+  if (value) {
+    return value.map(url => (ext ? url + ext : url));
+  }
 }
 
 // Returns value from path, adding extension when supplied
@@ -84,7 +86,6 @@ async function createImageNodes(urls, node, options) {
         if (typeof prepareUrl === 'function') {
           url = prepareUrl(url);
         }
-
         try {
           fileNode = await createRemoteFileNode({
             ...restOfOptions,
