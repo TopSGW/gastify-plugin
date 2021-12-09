@@ -33,11 +33,6 @@ exports.onCreateNode = async (
       imagePathSegments = imagePath.split('[].');
     }
 
-    const downloadingFilesActivity = reporter.activityTimer(
-      `Creating local images for ${nodeType}`
-    );
-    downloadingFilesActivity.start();
-
     if (imagePathSegments.length) {
       const urls = await getAllFilesUrls(imagePathSegments[0], node, {
         imagePathSegments,
@@ -51,7 +46,6 @@ exports.onCreateNode = async (
       const url = getPath(node, imagePath, ext);
       await createImageNode(url, node, createImageNodeOptions, reporter);
     }
-    downloadingFilesActivity.end();
   }
 };
 
