@@ -1,4 +1,7 @@
+'use strict';
+
 const { createRemoteFileNode } = require(`gatsby-source-filesystem`);
+
 const get = require('lodash/get');
 
 exports.onCreateNode = async (
@@ -29,47 +32,52 @@ exports.onCreateNode = async (
   if (node.internal.type === nodeType) {
     // Check if any part of the path indicates the node is an array and splits at those indicators
     let imagePathSegments = [];
+
     if (imagePath.includes('[].')) {
       imagePathSegments = imagePath.split('[].');
     }
+
+    const downloadingFilesActivity = reporter.activityTimer(
+      `Creating local images for ${nodeType}`
+    );
+    downloadingFilesActivity.start();
 
     if (imagePathSegments.length) {
       const urls = await getAllFilesUrls(imagePathSegments[0], node, {
         imagePathSegments,
         ...createImageNodeOptions,
       });
-      await createImageNodes(urls, node, createImageNodeOptions, reporter);
+      await createImageNodes(urls, node, createImageNodeOptions);
     } else if (type === 'array') {
       const urls = getPaths(node, imagePath, ext);
-      await createImageNodes(urls, node, createImageNodeOptions, reporter);
+      await createImageNodes(urls, node, createImageNodeOptions);
     } else {
       const url = getPath(node, imagePath, ext);
-      await createImageNode(url, node, createImageNodeOptions, reporter);
+      await createImageNode(url, node, createImageNodeOptions);
     }
+
     downloadingFilesActivity.end();
   }
 };
 
 function getPaths(node, path, ext = null) {
   const value = get(node, path);
+
   if (value) {
     return value.map(url => (ext ? url + ext : url));
   }
-}
+} // Returns value from path, adding extension when supplied
 
-// Returns value from path, adding extension when supplied
 function getPath(node, path, ext = null) {
   const value = get(node, path);
-
   return ext ? value + ext : value;
-}
+} // Returns a unique cache key for a given node ID
 
-// Returns a unique cache key for a given node ID
 function getCacheKeyForNodeId(nodeId) {
   return `gatsby-plugin-remote-images-${nodeId}`;
 }
 
-async function createImageNodes(urls, node, options, reporter) {
+async function createImageNodes(urls, node, options) {
   const { name, imagePathSegments, prepareUrl, ...restOfOptions } = options;
   let fileNode;
 
@@ -83,22 +91,22 @@ async function createImageNodes(urls, node, options, reporter) {
         if (typeof prepareUrl === 'function') {
           url = prepareUrl(url);
         }
+
         try {
           fileNode = await createRemoteFileNode({
             ...restOfOptions,
             url,
             parentNodeId: node.id,
           });
-          reporter.verbose(`Created image from ${url}`)
         } catch (e) {
-          reporter.error(`gatsby-plugin-remote-images ERROR:`, new Error(e))
+          console.error('gatsby-plugin-remote-images ERROR:', e);
         }
+
         return fileNode;
       })
     )
-  ).filter(fileNode => !!fileNode);
+  ).filter(fileNode => !!fileNode); // Store the mapping between the current node and the newly created File node
 
-  // Store the mapping between the current node and the newly created File node
   if (fileNodes.length) {
     // This associates the existing node (of user-specified type) with the new
     // File nodes created via createRemoteFileNode. The new File nodes will be
@@ -115,10 +123,9 @@ async function createImageNodes(urls, node, options, reporter) {
       [name]: fileNodes.map(({ id }) => id),
     });
   }
-}
+} // Creates a file node and associates the parent node to its new child
 
-// Creates a file node and associates the parent node to its new child
-async function createImageNode(url, node, options, reporter) {
+async function createImageNode(url, node, options) {
   const { name, imagePathSegments, prepareUrl, ...restOfOptions } = options;
   let fileNode;
 
@@ -136,12 +143,10 @@ async function createImageNode(url, node, options, reporter) {
       url,
       parentNodeId: node.id,
     });
-    reporter.verbose(`Created image from ${url}`)
   } catch (e) {
-    reporter.error(`gatsby-plugin-remote-images ERROR:`, new Error(e))
-  }
+    console.error('gatsby-plugin-remote-images ERROR:', e);
+  } // Store the mapping between the current node and the newly created File node
 
-  // Store the mapping between the current node and the newly created File node
   if (fileNode) {
     // This associates the existing node (of user-specified type) with the new
     // File nodes created via createRemoteFileNode. The new File nodes will be
@@ -158,31 +163,28 @@ async function createImageNode(url, node, options, reporter) {
       [name]: fileNode.id,
     });
   }
-}
+} // Recursively traverses objects/arrays at each path part, and return an array of urls
 
-// Recursively traverses objects/arrays at each path part, and return an array of urls
 async function getAllFilesUrls(path, node, options) {
   if (!path || !node) {
     return;
   }
+
   const { imagePathSegments, ext } = options;
   const pathIndex = imagePathSegments.indexOf(path),
     isPathToLeafProperty = pathIndex === imagePathSegments.length - 1,
-    nextValue = getPath(node, path, isPathToLeafProperty ? ext : null);
-
-  // @TODO: Need logic to handle if the leaf node is an array to then shift
+    nextValue = getPath(node, path, isPathToLeafProperty ? ext : null); // @TODO: Need logic to handle if the leaf node is an array to then shift
   // to the function of createImageNodes.
-  return Array.isArray(nextValue) && !isPathToLeafProperty
-    ? // Recursively call function with next path segment for each array element
-      (
+
+  return Array.isArray(nextValue) && !isPathToLeafProperty // Recursively call function with next path segment for each array element
+    ? (
         await Promise.all(
           nextValue.map(item =>
             getAllFilesUrls(imagePathSegments[pathIndex + 1], item, options)
           )
         )
-      ).reduce((arr, row) => arr.concat(row), [])
-    : // otherwise, handle leaf node
-      nextValue;
+      ).reduce((arr, row) => arr.concat(row), []) // otherwise, handle leaf node
+    : nextValue;
 }
 
 exports.createResolvers = ({ cache, createResolvers }, options) => {
@@ -197,11 +199,15 @@ exports.createResolvers = ({ cache, createResolvers }, options) => {
             const fileNodeMap = await cache.get(
               getCacheKeyForNodeId(source.id)
             );
+
             if (!fileNodeMap || !fileNodeMap[name]) {
               return [];
             }
+
             return fileNodeMap[name].map(id =>
-              context.nodeModel.getNodeById({ id })
+              context.nodeModel.getNodeById({
+                id,
+              })
             );
           },
         },
@@ -217,7 +223,9 @@ exports.createResolvers = ({ cache, createResolvers }, options) => {
             const fileNodeMap = await cache.get(
               getCacheKeyForNodeId(source.id)
             );
-            return context.nodeModel.getNodeById({ id: fileNodeMap[name] });
+            return context.nodeModel.getNodeById({
+              id: fileNodeMap[name],
+            });
           },
         },
       },
