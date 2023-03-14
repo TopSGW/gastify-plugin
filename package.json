@@ -1,6 +1,6 @@
 {
   "name": "gatsby-plugin-remote-images",
-  "version": "3.6.3",
+  "version": "3.6.4",
   "description": "Gatsby plugin to use gatsby-image on remote images from absolute path string fields on other nodes.",
   "author": "Grayson Hicks <graysonhicks@gmail.com>",
   "main": "gatsby-node.js",
@@ -28,12 +28,12 @@
     "@babel/cli": "^7.0.0",
     "@babel/core": "^7.0.0",
     "babel-jest": "^29.0.3",
-    "babel-preset-gatsby-package": "^1.4.0",
+    "babel-preset-gatsby-package": "^3.7.0",
     "cross-env": "^7.0.3",
-    "husky": "^3.1.0",
+    "husky": "^8.0.3",
     "jest": "^29.0.3",
-    "lint-staged": "^9.5.0",
-    "prettier": "^1.19.1",
+    "lint-staged": "^13.1.2",
+    "prettier": "^2.8.4",
     "rimraf": "^3.0.2"
   },
   "dependencies": {
