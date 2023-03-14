@@ -60,6 +60,7 @@ exports.onCreateNode = async (
     prepareUrl = null,
     type = 'object',
     silent = false,
+    skipUndefinedUrls = false,
   } = options;
   const createImageNodeOptions = {
     store,
@@ -71,6 +72,7 @@ exports.onCreateNode = async (
     ext,
     name,
     prepareUrl,
+    skipUndefinedUrls,
   };
   if (node.internal.type === nodeType) {
     // Check if any part of the path indicates the node is an array and splits at those indicators
@@ -134,6 +136,9 @@ async function createImageNodes(urls, node, options, reporter, silent) {
         if (typeof prepareUrl === 'function') {
           url = prepareUrl(url);
         }
+
+        if (options.skipUndefinedUrls && !url) return;
+
         try {
           fileNode = await createRemoteFileNode({
             ...restOfOptions,
@@ -178,6 +183,9 @@ async function createImageNode(url, node, options, reporter, silent) {
   if (typeof prepareUrl === 'function') {
     url = prepareUrl(url);
   }
+
+  if (options.skipUndefinedUrls && !url) return;
+
   try {
     if (isImageCdnEnabled()) {
       fileNodeId = options.createNodeId(`RemoteImageFile >>> ${node.id}`);
